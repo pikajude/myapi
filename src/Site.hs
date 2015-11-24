@@ -16,7 +16,6 @@ module Site
   where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative
 import           Control.Monad.IO.Class
 import           Data.ByteString                             (ByteString)
 import           Data.ByteString.Builder                     (toLazyByteString)
@@ -48,18 +47,12 @@ import           Web.PathPieces
 ------------------------------------------------------------------------------
 import           Application
 
-
-------------------------------------------------------------------------------
--- | Render login form
 handleLogin :: Maybe T.Text -> Handler App (AuthManager App) ()
 handleLogin authError = heistLocal (I.bindSplices errs) $ render "login"
   where
     errs = maybe mempty splice authError
     splice err = "loginError" ## I.textSplice err
 
-
-------------------------------------------------------------------------------
--- | Handle login submit
 handleLoginSubmit :: Handler App (AuthManager App) ()
 handleLoginSubmit =
     loginUser "login" "password" Nothing
@@ -67,32 +60,20 @@ handleLoginSubmit =
   where
     err = Just "Unknown user or password"
 
-
-------------------------------------------------------------------------------
--- | Logs out and redirects the user to the site index.
 handleLogout :: Handler App (AuthManager App) ()
 handleLogout = logout >> redirect "/"
-
-
-------------------------------------------------------------------------------
--- | Handle new user form submit
-handleNewUser :: Handler App (AuthManager App) ()
-handleNewUser = method GET handleForm <|> method POST handleFormSubmit
-  where
-    handleForm = render "new_user"
-    handleFormSubmit = registerUser "login" "password" >> redirect "/"
 
 handleIndex :: Handler App PersistState ()
 handleIndex = do
     posts <- runPersist (selectList ([] :: [Filter Entry]) [])
     let urls = map (\(Entity _ post) ->
             ("2", Just $ T.pack "https://jude.bio/r/" <> entrySlug post)) posts
-        qs = toLazyByteString $ renderQueryText True urls
+        qs = decodeUtf8 $ toStrict $ toLazyByteString $ renderQueryText True urls
     heistLocal (splices posts qs) $ render "home"
     where
         splices posts qs = I.bindSplices $ do
             "posts" ## I.mapSplices renderOne posts
-            "disqusUrl" ## I.textSplice (decodeUtf8 $ toStrict qs)
+            "disqusUrl" ## I.textSplice ("//otters.disqus.com/count-data.js" <> qs)
         renderOne (Entity _ post) = I.runChildrenWithText $ do
             "postTitle" ## entryTitle post
             "postSlug" ## entrySlug post
@@ -100,21 +81,37 @@ handleIndex = do
 handleReadSingle :: Handler App PersistState ()
 handleReadSingle = do
     Just slug <- getParam "slug"
-    Just (Entity k e) <- runPersist $ getBy (UniqueEntry $ decodeUtf8 slug)
-    heistLocal (I.bindSplices $ do
-        "postTitle" ## I.textSplice (entryTitle e)
-        "postId" ## I.textSplice (toPathPiece k)
-        "postSlug" ## I.textSplice (entrySlug e)
-        "postContent" ## markdownToSplice (Markdown . fromStrict $ entryContent e)
-        ) (render "single")
+    mEnt <- runPersist $ getBy (UniqueEntry $ decodeUtf8 slug)
+    case mEnt of
+        Nothing -> pass
+        Just e -> heistLocal (I.bindSplices $ postSplices e) (render "single")
 
+postSplices :: Monad m => Entity Entry -> Splices (I.Splice m)
+postSplices (Entity k e) = do
+    "postTitle" ## I.textSplice (entryTitle e)
+    "postId" ## I.textSplice (toPathPiece k)
+    "postSlug" ## I.textSplice (entrySlug e)
+    "postContent" ## markdownToSplice (Markdown . fromStrict $ entryContent e)
+    "postContentRaw" ## I.textSplice (entryContent e)
 
-------------------------------------------------------------------------------
--- | The application's routes.
+handleEdit :: Handler App PersistState ()
+handleEdit = do
+    Just k <- getParam "key"
+    let eKey = fromJust . fromPathPiece $ decodeUtf8 k
+    entry <- runPersist $ get eKey
+    case entry :: Maybe Entry of
+        Nothing -> pass
+        Just e -> do
+            let splices = do
+                    postSplices (Entity eKey e)
+                    "formAction" ## I.textSplice ("/e/" <> toPathPiece eKey)
+            heistLocal (I.bindSplices splices) $ render "edit"
+
 routes :: IO [(ByteString, Handler App App ())]
 routes = do
     bowerComponents <- fromMaybe "bower_components" <$> liftIO (lookupEnv "BOWER_COMPONENTS")
     return [ ("/r/:slug",  with db handleReadSingle)
+           , ("/e/:key",   with db handleEdit)
            , ("/s",        serveDirectory "static")
            , ("/css",      with sass sassServe)
            , ("/js",       with coffee coffeeServe)

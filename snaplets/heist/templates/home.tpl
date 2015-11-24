@@ -1,6 +1,7 @@
 <bind tag="subtitle"> » Home</bind>
+<bind tag="extra-head"/>
 <bind tag="extra-foot">
-  <script src="//otters.disqus.com/count-data.js${disqusUrl}"></script>
+  <script src="${disqusUrl}"></script>
 </bind>
 <apply template="base">
   <article class="bubble last-bubble">

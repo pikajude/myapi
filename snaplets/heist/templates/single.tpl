@@ -12,7 +12,7 @@
       <postTitle/>
 
       <ifLoggedIn>
-        <a class="edit-link fa fa-pencil" href="/e/${postSlug}"></a>
+        <a class="edit-link fa fa-pencil" href="/e/${postId}"></a>
         <form class="delete-form" method="post" action="/d/${postId}">
           <button type="submit" class="fa fa-trash-o" data-confirm="Are you sure you want to delete this post?"></button>
         </form>
