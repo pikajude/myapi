@@ -16,10 +16,14 @@ module Site
   where
 
 ------------------------------------------------------------------------------
+import           Control.Monad
 import           Control.Monad.IO.Class
+import           Control.Monad.Logger                        (NoLoggingT)
+import           Control.Monad.Trans.Resource                (ResourceT)
 import           Data.ByteString                             (ByteString)
 import           Data.ByteString.Builder                     (toLazyByteString)
 import           Data.ByteString.Lazy                        (toStrict)
+import           Data.Char                                   (isAlphaNum)
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Text                                   as T
@@ -42,6 +46,9 @@ import           Snap.Snaplet.Sass
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
 import           System.Environment                          (lookupEnv)
+import           Text.Digestive
+import           Text.Digestive.Heist
+import           Text.Digestive.Snap
 import           Text.Markdown                               (Markdown (Markdown))
 import           Web.PathPieces
 ------------------------------------------------------------------------------
@@ -81,10 +88,8 @@ handleIndex = do
 handleReadSingle :: Handler App PersistState ()
 handleReadSingle = do
     Just slug <- getParam "slug"
-    mEnt <- runPersist $ getBy (UniqueEntry $ decodeUtf8 slug)
-    case mEnt of
-        Nothing -> pass
-        Just e -> heistLocal (I.bindSplices $ postSplices e) (render "single")
+    e <- run404 $ getBy (UniqueEntry $ decodeUtf8 slug)
+    heistLocal (I.bindSplices $ postSplices e) (render "single")
 
 postSplices :: Monad m => Entity Entry -> Splices (I.Splice m)
 postSplices (Entity k e) = do
@@ -94,18 +99,36 @@ postSplices (Entity k e) = do
     "postContent" ## markdownToSplice (Markdown . fromStrict $ entryContent e)
     "postContentRaw" ## I.textSplice (entryContent e)
 
+entryForm :: Monad m => Maybe Entry -> Form T.Text m Entry
+entryForm mentry = (\ a b c -> Entry a (mkSlug a) b c)
+    <$> "title" .: check "Title can't be empty" (not . T.null) (text (entryTitle <$> mentry))
+    <*> "content" .: text (entryContent <$> mentry)
+    <*> "createdAt" .: stringRead "Created at must be a date" (entryCreatedAt <$> mentry)
+    where
+        mkSlug = T.pack . trim . squash . map dasherize . T.unpack . T.toLower
+        dasherize x = if isAlphaNum x then x else '-'
+        trim = dropWhile (== '-') . reverse . dropWhile (== '-') . reverse
+        squash ('-':'-':xs) = '-' : squash xs
+        squash (x:xs) = x : squash xs
+        squash [] = []
+
 handleEdit :: Handler App PersistState ()
 handleEdit = do
     Just k <- getParam "key"
     let eKey = fromJust . fromPathPiece $ decodeUtf8 k
-    entry <- runPersist $ get eKey
-    case entry :: Maybe Entry of
-        Nothing -> pass
-        Just e -> do
+    entry <- run404 $ get eKey
+    (view, result) <- runForm "entry" (entryForm $ Just entry)
+    case result of
+        Just x -> writeText $ T.pack $ show x
+        Nothing ->
             let splices = do
-                    postSplices (Entity eKey e)
+                    digestiveSplices view
+                    postSplices (Entity eKey entry)
                     "formAction" ## I.textSplice ("/e/" <> toPathPiece eKey)
-            heistLocal (I.bindSplices splices) $ render "edit"
+             in heistLocal (I.bindSplices splices) $ render "edit"
+
+run404 :: SqlPersistT (ResourceT (NoLoggingT IO)) (Maybe b) -> Handler App PersistState b
+run404 = maybe pass return <=< runPersist
 
 routes :: IO [(ByteString, Handler App App ())]
 routes = do
