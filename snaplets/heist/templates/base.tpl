@@ -30,8 +30,8 @@
           <span class="arrow"></span>
           <div id="dots">
             <span class="up-arrow"></span>
-<a href="https://github.com/pikajude" class="dot" id="github" data-tipsy title="I'm on GitHub!">I'm on GitHub!</a>
-<a href="http://www.linkedin.com/pub/joel-taylor/6a/691/988/" class="dot" id="linkedin" data-tipsy title="I'm on LinkedIn!">I'm on LinkedIn!</a>
+            <a href="https://github.com/pikajude" class="dot" id="github" data-tipsy title="I'm on GitHub!">I'm on GitHub!</a>
+            <a href="http://www.linkedin.com/pub/joel-taylor/6a/691/988/" class="dot" id="linkedin" data-tipsy title="I'm on LinkedIn!">I'm on LinkedIn!</a>
           </div>
         </header>
         <apply-content/>
