@@ -38,6 +38,7 @@ let
   };
 
   drv = with haskellPackages; pkgs.haskell.lib.overrideCabal (callPackage ./nixfiles/pkg.nix {}) (p: {
+    src = ./.;
     buildTools = (p.buildTools or []) ++ [
       pkgs.nodePackages.coffee-script sass
     ] ++ pkgs.lib.optionals devMode [

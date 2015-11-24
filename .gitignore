@@ -1,4 +1,5 @@
 dist
+result*
 log
 site_key.txt
 snaplets/sass/css

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module HighlightedMarkdown where
 
 import qualified Data.ByteString               as BS
