@@ -1,0 +1,18 @@
+{
+  "name": "jude-web",
+  "version": "0.0.0",
+  "homepage": "https://github.com/pikajude/jude-web",
+  "authors": [
+    "Jude Taylor <me@jude.bio>"
+  ],
+  "description": "jude.bio",
+  "main": "src/Main.hs",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "jquery": "*",
+    "tipsy": "*",
+    "foundation": "*",
+    "fontawesome": "*"
+  }
+}

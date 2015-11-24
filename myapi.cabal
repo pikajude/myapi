@@ -1,0 +1,76 @@
+Name:                myapi
+Version:             0.1
+Synopsis:            Project Synopsis Here
+Description:         Project Description Here
+License:             AllRightsReserved
+Author:              Author
+Maintainer:          maintainer@example.com
+Stability:           Experimental
+Category:            Web
+Build-type:          Simple
+Cabal-version:       >=1.2
+
+Flag development
+  Description: Whether to build the server in development (interpreted) mode
+  Default: False
+
+Flag old-base
+  default: False
+  manual: False
+
+Executable myapi
+  hs-source-dirs: src
+  main-is: Main.hs
+
+  Build-depends:
+    blaze-html,
+    bytestring,
+    data-default,
+    heist,
+    highlighter,
+    http-types,
+    markdown,
+    MonadCatchIO-transformers,
+    mtl,
+    path-pieces,
+    pcre-light,
+    persistent,
+    persistent-template,
+    snap,
+    snap-core,
+    snap-server,
+    snap-loader-static,
+    snaplet-coffee,
+    snaplet-persistent,
+    snaplet-sass,
+    text,
+    time,
+    transformers,
+    xmlhtml
+
+  if flag(old-base)
+    build-depends:
+      base                      >= 4        && < 4.4,
+      lens                      >= 3.7.6    && < 3.8
+  else
+    build-depends:
+      base                      >= 4.4      && < 5,
+      lens                      >= 3.7.6    && < 4.13
+
+  if flag(development)
+    build-depends:
+      snap-loader-dynamic == 0.10.*
+    cpp-options: -DDEVELOPMENT
+    -- In development mode, speed is already going to suffer, so skip
+    -- the fancy optimization flags.  Additionally, disable all
+    -- warnings.  The hint library doesn't give an option to execute
+    -- compiled code when there were also warnings, so disabling
+    -- warnings allows quicker workflow.
+    ghc-options: -threaded -w
+  else
+    if impl(ghc >= 6.12.0)
+      ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
+                   -fno-warn-orphans -fno-warn-unused-do-bind
+    else
+      ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
+                   -fno-warn-orphans
