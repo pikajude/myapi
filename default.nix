@@ -42,7 +42,7 @@ let
     buildTools = (p.buildTools or []) ++ [
       pkgs.nodePackages.coffee-script sass
     ] ++ pkgs.lib.optionals devMode [
-      cabal-install stylish-haskell
+      cabal-install cabal2nix stylish-haskell
       pkgs.bundix pkgs.bundler pkgs.postgresql
     ];
   });

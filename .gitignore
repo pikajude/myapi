@@ -1,7 +1,9 @@
-dist
-result*
-log
-site_key.txt
-snaplets/sass/css
-snaplets/coffee/js
+.bundle
 .sass-cache
+dist
+log
+result*
+site_key.txt
+snaplets/coffee/js
+snaplets/sass/css
+vendor
