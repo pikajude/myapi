@@ -23,6 +23,7 @@ Executable myapi
   main-is: Main.hs
 
   Build-depends:
+    blaze-builder,
     blaze-html,
     bytestring,
     data-default,
@@ -43,6 +44,7 @@ Executable myapi
     resourcet,
     snap,
     snap-core,
+    snap-extras,
     snap-server,
     snap-loader-static,
     snaplet-coffee,

@@ -7,7 +7,10 @@
 
 module Models where
 
+import Data.ByteString     (ByteString)
+import Data.Monoid
 import Data.Text           (Text)
+import Data.Text.Encoding
 import Data.Time
 import Database.Persist.TH
 
@@ -20,3 +23,6 @@ Entry
     UniqueEntry slug
     deriving Show
 |]
+
+entryPath :: Entry -> ByteString
+entryPath e = "/r/" <> encodeUtf8 (entrySlug e)

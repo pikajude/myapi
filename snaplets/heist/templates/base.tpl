@@ -23,6 +23,7 @@
   <body>
     <div class="row" role="main">
       <div class="speech large-12 columns">
+        <flash type="success"/>
         <header>
           <a id="head" href="/">jude.bio</a>
           <span class="arrow"></span>
@@ -30,6 +31,10 @@
             <span class="up-arrow"></span>
             <a href="https://github.com/pikajude" class="dot" id="github" data-tipsy title="I'm on GitHub!">I'm on GitHub!</a>
             <a href="http://www.linkedin.com/pub/joel-taylor/6a/691/988/" class="dot" id="linkedin" data-tipsy title="I'm on LinkedIn!">I'm on LinkedIn!</a>
+            <ifLoggedIn>
+              <a href="/n" class="dot" id="new-post" data-tipsy title="New post">New
+post</a>
+            </ifLoggedIn>
           </div>
         </header>
         <apply-content/>

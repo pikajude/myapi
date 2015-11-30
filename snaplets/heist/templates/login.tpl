@@ -1,36 +1,31 @@
-<bind tag="extra-head">
-  <link rel="stylesheet" type="text/css" href="/css/login.css" />
-</bind>
+<bind tag="extra-foot"/>
 <apply template="base">
+  <head>
+    <link rel="stylesheet" type="text/css" href="/css/form.css" />
+  </head>
   <article class="bubble">
     <h3 class="form-title">Log in</h3>
-    <form role="form" method="post" action="/in">
+    <loginForm role="form" method="post" action="/in">
+      <dfIfChildErrors>
+        <small class="error"><dfErrorList ref="" /></small>
+      </dfIfChildErrors>
+
       <div class="row">
         <div class="large-6 columns">
-          <label>
-            Email
-            <input name="login" type="text" class="form-control" />
-          </label>
+          <dfLabel ref="username">
+            Username
+            <dfInputText ref="username" class="form-control" />
+          </dfLabel>
         </div>
 
         <div class="large-6 columns">
-          <label>
+          <dfLabel ref="password">
             Password
-            <input name="password" type="password" class="form-control" />
-          </label>
+            <dfInputPassword ref="password" class="form-control" />
+          </dfLabel>
         </div>
       </div>
       <button type="submit" class="button tiny">Try it</button>
-    </form>
+    </loginForm>
   </article>
-
-<!--
-  <h1>Snap Example App Login</h1>
-
-  <p><loginError/></p>
-
-  <bind tag="postAction">/in</bind>
-  <bind tag="submitText">Login</bind>
-  <apply template="userform"/>
--->
 </apply>
