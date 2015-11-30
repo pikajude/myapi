@@ -9,7 +9,6 @@ import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import           Data.Text.Encoding
 import           Data.Text.Lazy                (toStrict)
-import qualified Heist.Compiled                as C
 import           Text.Blaze.Html.Renderer.Text
 import           Text.Blaze.Html5              (toHtml)
 import qualified Text.Blaze.Html5              as H

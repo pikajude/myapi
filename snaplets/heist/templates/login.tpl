@@ -9,7 +9,7 @@
         <div class="large-6 columns">
           <label>
             Email
-            <input name="login" type="email" class="form-control" />
+            <input name="login" type="text" class="form-control" />
           </label>
         </div>
 
