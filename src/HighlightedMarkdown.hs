@@ -9,6 +9,7 @@ import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import           Data.Text.Encoding
 import           Data.Text.Lazy                (toStrict)
+import qualified Heist.Compiled                as C
 import           Text.Blaze.Html.Renderer.Text
 import           Text.Blaze.Html5              (toHtml)
 import qualified Text.Blaze.Html5              as H
@@ -18,8 +19,8 @@ import           Text.Markdown
 import           Text.Regex.PCRE.Light
 import qualified Text.XmlHtml                  as X
 
-markdownToSplice :: Monad m => Markdown -> m [X.Node]
-markdownToSplice (Markdown m) = return nodelist where
+markdownToSplice :: Markdown -> [X.Node]
+markdownToSplice (Markdown m) = nodelist where
     nodelist = X.docContent $ either error id $ X.parseHTML "<anonymous>" document
     document = encodeUtf8 $ toStrict $ renderHtml $ markdown defWithHighlight m
     defWithHighlight = def { msBlockCodeRenderer = rendered }

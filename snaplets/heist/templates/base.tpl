@@ -16,8 +16,6 @@
     <link rel="stylesheet" type="text/css" href="/css/all.css"/>
     <link rel="stylesheet" type="text/css" href="/s/css/amelie.css"/>
 
-    <extra-head/>
-
     <!--[if lt IE 9]>
     <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
@@ -47,7 +45,6 @@
     <script src="/vendor/tipsy/src/javascripts/jquery.tipsy.js"/>
     <script src="/js/index.js"></script>
     <script>$(document).foundation()</script>
-
     <extra-foot/>
   </body>
 </html>

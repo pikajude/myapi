@@ -16,12 +16,14 @@ module Site
   where
 
 ------------------------------------------------------------------------------
+import           Control.Lens
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Monad.Logger                        (NoLoggingT)
+import           Control.Monad.Trans
 import           Control.Monad.Trans.Resource                (ResourceT)
 import           Data.ByteString                             (ByteString)
-import           Data.ByteString.Builder                     (toLazyByteString)
+import           Data.ByteString.Builder                     (Builder, toLazyByteString)
 import           Data.ByteString.Lazy                        (toStrict)
 import           Data.Char                                   (isAlphaNum)
 import           Data.Maybe
@@ -31,7 +33,9 @@ import           Data.Text.Encoding
 import           Data.Text.Lazy                              (fromStrict)
 import           Database.Persist.Sql
 import           Heist
+import qualified Heist.Compiled                              as C
 import qualified Heist.Interpreted                           as I
+import           Heist.Splices.Html
 import           HighlightedMarkdown
 import           Models
 import           Network.HTTP.Types                          (renderQueryText)
@@ -53,6 +57,8 @@ import           Text.Markdown                               (Markdown (Markdown
 import           Web.PathPieces
 ------------------------------------------------------------------------------
 import           Application
+
+type RSplice = RuntimeSplice (Handler App App)
 
 handleLogin :: Maybe T.Text -> Handler App (AuthManager App) ()
 handleLogin authError = heistLocal (I.bindSplices errs) $ render "login"
@@ -89,15 +95,38 @@ handleReadSingle :: Handler App PersistState ()
 handleReadSingle = do
     Just slug <- getParam "slug"
     e <- run404 $ getBy (UniqueEntry $ decodeUtf8 slug)
-    heistLocal (I.bindSplices $ postSplices e) (render "single")
+    undefined -- heistLocal (I.bindSplices $ postSplices e) (render "single")
 
-postSplices :: Monad m => Entity Entry -> Splices (I.Splice m)
-postSplices (Entity k e) = do
-    "postTitle" ## I.textSplice (entryTitle e)
-    "postId" ## I.textSplice (toPathPiece k)
-    "postSlug" ## I.textSplice (entrySlug e)
-    "postContent" ## markdownToSplice (Markdown . fromStrict $ entryContent e)
-    "postContentRaw" ## I.textSplice (entryContent e)
+singleSplices :: Splices (C.Splice (Handler App App))
+singleSplices = "singleEntry" ## withCache getSinglePost (C.withSplices C.runChildren postSplices)
+    where
+        getSinglePost = lift $ do
+            slug <- maybe pass return =<< getParam "slug"
+            withTop db $ run404 $ getBy (UniqueEntry $ decodeUtf8 slug)
+
+homepageSplices :: Splices (C.Splice (Handler App App))
+homepageSplices = "homePage" ## withCache getAllPosts (C.withSplices C.runChildren $ do
+        "postList" ## (C.manyWithSplices C.runChildren postSplices)
+        "disqusUrl" ## C.pureSplice (\ es ->
+            let urls = map (\(Entity _ post) ->
+                    ("2", Just $ T.pack "https://jude.bio/r/" <> entrySlug post)) es
+                qs = renderQueryText True urls
+             in "//otters.disqus.com/count-data.js" <> qs
+                       )
+        )
+    where
+        getAllPosts :: RuntimeSplice (Handler App App) [Entity Entry]
+        getAllPosts = lift $ withTop db $ runPersist (selectList [] [])
+
+withCache x y = C.deferMap return y x
+
+postSplices :: Splices (RSplice (Entity Entry) -> C.Splice (Handler App App))
+postSplices = mapV C.pureSplice $ do
+    "postTitle" ## C.textSplice (entryTitle . entityVal)
+    "postId" ## C.textSplice (toPathPiece . entityKey)
+    "postSlug" ## C.textSplice (entrySlug . entityVal)
+    "postContent" ## C.htmlNodeSplice (markdownToSplice . Markdown . fromStrict . entryContent . entityVal)
+    "postContentRaw" ## C.textSplice (entryContent . entityVal)
 
 entryForm :: Monad m => Maybe Entry -> Form T.Text m Entry
 entryForm mentry = (\ a b c -> Entry a (mkSlug a) b c)
@@ -123,7 +152,7 @@ handleEdit = do
         Nothing ->
             let splices = do
                     digestiveSplices view
-                    postSplices (Entity eKey entry)
+                    -- postSplices (Entity eKey entry)
                     "formAction" ## I.textSplice ("/e/" <> toPathPiece eKey)
              in heistLocal (I.bindSplices splices) $ render "edit"
 
@@ -133,22 +162,30 @@ run404 = maybe pass return <=< runPersist
 routes :: IO [(ByteString, Handler App App ())]
 routes = do
     bowerComponents <- fromMaybe "bower_components" <$> liftIO (lookupEnv "BOWER_COMPONENTS")
-    return [ ("/r/:slug",  with db handleReadSingle)
-           , ("/e/:key",   with db handleEdit)
+    return [ ("/r/:slug",  cRender "single")
+           -- , ("/e/:key",   with db handleEdit)
            , ("/s",        serveDirectory "static")
            , ("/css",      with sass sassServe)
            , ("/js",       with coffee coffeeServe)
            , ("/vendor",   serveDirectory bowerComponents)
-           , ("/in",       with auth handleLoginSubmit)
-           , ("/out",      with auth handleLogout)
-           , ("/",         ifTop (with db handleIndex))
+           -- , ("/in",       with auth handleLoginSubmit)
+           -- , ("/out",      with auth handleLogout)
+           -- , ("/",         ifTop (with db handleIndex))
+           , ("/",         ifTop (cRender "home"))
            ]
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
 app :: SnapletInit App App
 app = makeSnaplet "app" "An snaplet example application." Nothing $ do
-    h <- nestSnaplet "" heist $ heistInit "templates"
+    let hc = emptyHeistConfig & hcNamespace .~ ""
+                              & hcErrorNotBound .~ True
+                              & hcSpliceConfig .~ sc
+        sc = mempty & scLoadTimeSplices .~ do
+                          defaultLoadTimeSplices
+                          htmlTag ## htmlImpl
+                    & scCompiledSplices .~ homepageSplices <> singleSplices
+    h <- nestSnaplet "" heist $ heistInit' "templates" hc
     s <- nestSnaplet "sess" sess $
         initCookieSessionManager "site_key.txt" "sess" (Just 3600)
     a <- nestSnaplet "auth" auth $
