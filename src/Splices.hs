@@ -10,6 +10,7 @@ import           Data.Monoid
 import qualified Data.Text                       as T
 import           Data.Text.Encoding
 import           Data.Text.Lazy                  (fromStrict)
+import           Data.Time
 import           Database.Persist
 import           Database.Persist.Sql            (SqlPersistT)
 import           Heist
@@ -33,11 +34,12 @@ run404 = maybe pass return <=< runPersist
 withCache :: RSplice a -> (RSplice a -> C.Splice (Handler App App)) -> C.Splice (Handler App App)
 withCache = flip (C.deferMap return)
 
-entryForm :: Monad m => Maybe Entry -> Form T.Text m Entry
-entryForm mentry = (\ a b c -> Entry a (mkSlug a) b c)
-    <$> "title" .: check "Title can't be empty" (not . T.null) (text (entryTitle <$> mentry))
-    <*> "content" .: check "Content can't be empty" (not . T.null) (text (entryContent <$> mentry))
-    <*> "createdAt" .: stringRead "Created at must be a date" (entryCreatedAt <$> mentry)
+entryForm :: MonadIO m => Maybe Entry -> Form T.Text m Entry
+entryForm mentry = monadic $ do
+    t <- liftIO getCurrentTime
+    return $ (\ a b -> Entry a (mkSlug a) b t)
+        <$> "title" .: check "Title can't be empty" (not . T.null) (text (entryTitle <$> mentry))
+        <*> "content" .: check "Content can't be empty" (not . T.null) (text (entryContent <$> mentry))
     where
         mkSlug = T.pack . trim . squash . map dasherize . T.unpack . T.toLower
         dasherize x = if isAlphaNum x then x else '-'

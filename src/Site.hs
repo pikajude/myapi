@@ -44,7 +44,7 @@ import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
 import           Splices
 import           System.Environment                          (lookupEnv)
-import           Text.Digestive.Snap
+import           Text.Digestive.Snap                         hiding (method)
 import           Web.PathPieces
 ------------------------------------------------------------------------------
 import           Application
@@ -82,33 +82,45 @@ handleIndex = do
 
 handleEdit :: Handler App PersistState ()
 handleEdit = do
-    m <- snapMethod
+    m <- rqMethod <$> getRequest
     case m of
         GET -> cRender "edit"
         POST -> do
-            Just k <- getParam "key"
-            let eKey = fromJust . fromPathPiece $ decodeUtf8 k
+            eKey <- getPathPiece "key"
             entry <- run404 $ get eKey
             result <- liftM snd $ runForm "entry" (entryForm $ Just entry)
+            case result of
+                Nothing -> cRender "edit"
+                Just newEntry -> do
+                    runPersist $ replace eKey newEntry
+                    redirect $ "/r/" <> encodeUtf8 (entrySlug newEntry)
             maybe (cRender "edit") (writeText . T.pack . show) result
         _ -> pass
-    where
-        snapMethod = rqMethod <$> getRequest
+
+handleDelete :: Handler App PersistState ()
+handleDelete = do
+    eKey <- getPathPiece "key"
+    runPersist $ delete (eKey :: Key Entry)
+    redirect "/"
+
+getPathPiece :: (MonadSnap m, PathPiece b) => ByteString -> m b
+getPathPiece = maybe pass return . (>>= fromPathPiece . decodeUtf8) <=< getParam
 
 routes :: IO [(ByteString, Handler App App ())]
 routes = do
     bowerComponents <- fromMaybe "bower_components" <$> lookupEnv "BOWER_COMPONENTS"
     return [ ("/r/:slug",  cRender "single")
-           , ("/e/:key",   with db handleEdit)
+           , ("/e/:key",   needAuth $ with db handleEdit)
+           , ("/d/:key",   needAuth $ with db $ method POST handleDelete)
            , ("/s",        serveDirectory "static")
            , ("/css",      with sass sassServe)
            , ("/js",       with coffee coffeeServe)
            , ("/vendor",   serveDirectory bowerComponents)
            , ("/in",       with auth handleLoginSubmit)
-           -- , ("/out",      with auth handleLogout)
-           -- , ("/",         ifTop (with db handleIndex))
+           , ("/out",      needAuth $ with auth handleLogout)
            , ("/",         ifTop (cRender "home"))
            ]
+    where needAuth = requireUser auth pass
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
