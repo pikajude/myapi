@@ -6,4 +6,5 @@ result*
 site_key.txt
 snaplets/coffee/js
 snaplets/sass/css
+static/compiled
 vendor

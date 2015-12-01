@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
@@ -26,9 +27,9 @@ import Data.Monoid
 import Database.Persist.Sql
 import Heist
 import Heist.Splices.Html
-import Models
 import Snap.Core
 import Snap.Extras.FlashNotice
+import Snap.Extras.MethodOverride
 import Snap.Snaplet
 import Snap.Snaplet.Auth
 import Snap.Snaplet.Auth.Backends.JsonFile
@@ -38,11 +39,14 @@ import Snap.Snaplet.Persistent
 import Snap.Snaplet.Sass
 import Snap.Snaplet.Session.Backends.CookieSession
 import Snap.Util.FileServe
-import Splices
 import System.Environment                          (lookupEnv)
 import Text.Digestive.Snap                         hiding (method)
 ------------------------------------------------------------------------------
 import Application
+import Forms
+import Models
+import PersistUtils
+import Splices
 
 handleLoginPost :: Handler App (AuthManager App) ()
 handleLoginPost = do
@@ -51,7 +55,7 @@ handleLoginPost = do
         Nothing -> cRender "login"
         Just _ -> redirect "/"
 
-handleEditPost :: Handler App App ()
+handleEditPost :: AppHandler ()
 handleEditPost = do
     eKey <- getPathPiece "key"
     entry <- with db $ run404 $ get eKey
@@ -63,17 +67,16 @@ handleEditPost = do
             flashSuccess sess $ "Updated ‘" <> entryTitle newEntry <> "’"
             redirect $ entryPath newEntry
 
-handleNewPost :: Handler App App ()
+handleNewPost :: AppHandler ()
 handleNewPost = do
     result <- liftM snd $ runForm "entry" (entryForm Nothing)
     case result of
         Nothing -> cRender "new"
         Just newEntry -> do
             with db $ runPersist $ insert newEntry
-            flashSuccess sess $ "Created ‘" <> entryTitle newEntry <> "’"
             redirect $ entryPath newEntry
 
-handleDelete :: Handler App App ()
+handleDelete :: AppHandler ()
 handleDelete = do
     eKey <- getPathPiece "key"
     e <- with db $ do
@@ -83,13 +86,14 @@ handleDelete = do
     flashSuccess sess $ "Deleted ‘" <> entryTitle e <> "’"
     redirect "/"
 
-routes :: IO [(ByteString, Handler App App ())]
+routes :: IO [(ByteString, AppHandler ())]
 routes = do
     bowerComponents <- fromMaybe "bower_components" <$> lookupEnv "BOWER_COMPONENTS"
-    return [ ("/r/:slug",  cRender "single")
+    return
+           [ ("/r/:slug",  cRender "single")
            , ("/e/:key",   needAuth $ method GET (cRender "edit")
                                   <|> method POST handleEditPost)
-           , ("/d/:key",   needAuth $ method POST handleDelete)
+           , ("/d/:key",   needAuth $ handleMethodOverride $ method DELETE handleDelete)
            , ("/n",        needAuth $ method GET (cRender "new")
                                   <|> method POST handleNewPost)
 
@@ -102,22 +106,30 @@ routes = do
            , ("/js",       with coffee coffeeServe)
            , ("/vendor",   serveDirectory bowerComponents)
 
-           , ("/",         ifTop (cRender "home"))
+           , ("/",         ifTop $ cRender "home")
+
+           , ("",          handle404)
            ]
     where needAuth = requireUser auth pass
           needNoAuth x = requireUser auth x (redirect "/")
+          handle404 = do
+              modifyResponse $ setResponseCode 404
+              cRender "404"
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
 app :: SnapletInit App App
 app = makeSnaplet "app" "An snaplet example application." Nothing $ do
+    e <- getEnvironment
     let hc = emptyHeistConfig & hcNamespace .~ ""
                               & hcErrorNotBound .~ True
                               & hcSpliceConfig .~ sc
         sc = mempty & scLoadTimeSplices .~ do
                           defaultLoadTimeSplices
                           htmlTag ## htmlImpl
-                    & scCompiledSplices .~ siteSplices
+                    & scCompiledSplices .~ do
+                          siteSplices
+                          "compile" ## compileSplice e
     h <- nestSnaplet "" heist $ heistInit' "templates" hc
     s <- nestSnaplet "sess" sess $
         initCookieSessionManager "site_key.txt" "sess" (Just 3600)
@@ -127,7 +139,8 @@ app = makeSnaplet "app" "An snaplet example application." Nothing $ do
     ss <- nestSnaplet "sass" sass initSass
     p <- nestSnaplet "db" db (initPersist (runMigration migrateAll))
 
-    addRoutes =<< liftIO routes
     addAuthSplices h auth
     initFlashNotice h sess
-    return $ App h s a ss p c
+    rs <- liftIO routes
+    addRoutes rs
+    return $ App h s a ss p c app rs

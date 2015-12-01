@@ -26,10 +26,13 @@ Executable myapi
     blaze-builder,
     blaze-html,
     bytestring,
+    cryptohash,
     data-default,
     digestive-functors,
     digestive-functors-heist,
     digestive-functors-snap,
+    directory,
+    filepath,
     heist,
     highlighter,
     http-types,
@@ -41,6 +44,7 @@ Executable myapi
     pcre-light,
     persistent,
     persistent-template,
+    process-extras,
     resourcet,
     snap,
     snap-core,
@@ -50,9 +54,11 @@ Executable myapi
     snaplet-coffee,
     snaplet-persistent,
     snaplet-sass,
+    template-haskell,
     text,
     time,
     transformers,
+    true-name,
     xmlhtml
 
   if flag(old-base)

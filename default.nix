@@ -40,7 +40,7 @@ let
   drv = with haskellPackages; pkgs.haskell.lib.overrideCabal (callPackage ./nixfiles/pkg.nix {}) (p: {
     src = ./.;
     buildTools = (p.buildTools or []) ++ [
-      pkgs.nodePackages.coffee-script sass
+      pkgs.nodePackages.coffee-script pkgs.nodePackages.uglify-js sass
     ] ++ pkgs.lib.optionals devMode [
       cabal-install cabal2nix stylish-haskell
       pkgs.bundix pkgs.bundler pkgs.postgresql

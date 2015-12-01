@@ -1,70 +1,50 @@
-module Splices (entryForm, run404, siteSplices, getPathPiece, loginForm) where
+{-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE GADTs                     #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings         #-}
 
-import           Application
+module Splices (siteSplices, compileSplice) where
+
 import           Control.Monad
-import           Control.Monad.Logger            (NoLoggingT)
 import           Control.Monad.Trans
-import           Control.Monad.Trans.Resource    (ResourceT)
-import           Data.ByteString                 (ByteString)
-import           Data.Char                       (isAlphaNum)
+import           Crypto.Hash
+import qualified Data.ByteString.Lazy            as B
+import           Data.List
+import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Text                       as T
 import           Data.Text.Encoding
 import           Data.Text.Lazy                  (fromStrict)
-import           Data.Time
 import           Database.Persist
-import           Database.Persist.Sql            (SqlPersistT)
 import           Heist
 import qualified Heist.Compiled                  as C
-import           HighlightedMarkdown
-import           Models
 import           Network.HTTP.Types
 import           Snap
-import           Snap.Snaplet.Auth
 import           Snap.Snaplet.Persistent
-import           Text.Digestive
-import           Text.Digestive.Heist.ErrorAware
-import           Text.Digestive.Snap
+import           System.Directory
+import           System.Exit
+import           System.FilePath
+import           System.Process.ByteString.Lazy  (readProcessWithExitCode)
 import           Text.Markdown                   (Markdown (Markdown))
+import           Text.Printf
+import           Text.XmlHtml
 import           Web.PathPieces
+------------------------------------------------------------------------------
+import           Application
+import           Forms
+import           HighlightedMarkdown
+import           Models
+import           PersistUtils
+import           RunHandler
+import           Text.Digestive.Heist.ErrorAware
 
-type RSplice = RuntimeSplice (Handler App App)
-
-run404 :: SqlPersistT (ResourceT (NoLoggingT IO)) (Maybe b) -> Handler App PersistState b
-run404 = maybe pass return <=< runPersist
-
-withCache :: RSplice a -> (RSplice a -> C.Splice (Handler App App)) -> C.Splice (Handler App App)
+withCache :: RuntimeSplice AppHandler a -> (RuntimeSplice AppHandler a -> C.Splice AppHandler) -> C.Splice AppHandler
 withCache = flip (C.deferMap return)
 
-entryForm :: MonadIO m => Maybe Entry -> Form T.Text m Entry
-entryForm mentry = monadic $ do
-    t <- liftIO getCurrentTime
-    return $ (\ a b -> Entry a (mkSlug a) b t)
-        <$> "title" .: check "Title can't be empty" (not . T.null) (text (entryTitle <$> mentry))
-        <*> "content" .: check "Content can't be empty" (not . T.null) (text (entryContent <$> mentry))
-    where
-        mkSlug = T.pack . trim . squash . map dasherize . T.unpack . T.toLower
-        dasherize x = if isAlphaNum x then x else '-'
-        trim = dropWhile (== '-') . reverse . dropWhile (== '-') . reverse
-        squash ('-':'-':xs) = '-' : squash xs
-        squash (x:xs) = x : squash xs
-        squash [] = []
+loginSplices :: Splices (C.Splice AppHandler)
+loginSplices = "loginForm" ## formSplice mempty mempty (spliceForm "login" loginForm)
 
-loginForm :: Form T.Text (Handler App v) AuthUser
-loginForm = validateM checkUserValid $
-    (,,) <$> "username" .: text Nothing
-         <*> "password" .: text Nothing
-         <*> "remember" .: bool Nothing
-    where
-        checkUserValid (user, password, remember) =
-            fmap toResult $ withTop auth $ loginByUsername user (ClearText $ encodeUtf8 password) remember
-        toResult (Left _) = Text.Digestive.Error "Unknown username or password."
-        toResult (Right x) = Success x
-
-loginSplices :: Splices (C.Splice (Handler App App))
-loginSplices = "loginForm" ## formSplice mempty mempty (lift $ liftM fst $ runForm "login" loginForm)
-
-postSplices :: Splices (RSplice (Entity Entry) -> C.Splice (Handler App App))
+postSplices :: Splices (RuntimeSplice AppHandler (Entity Entry) -> C.Splice AppHandler)
 postSplices = mapV C.pureSplice $ do
     "postTitle" ## C.textSplice (entryTitle . entityVal)
     "postId" ## C.textSplice (toPathPiece . entityKey)
@@ -72,37 +52,31 @@ postSplices = mapV C.pureSplice $ do
     "postContent" ## C.htmlNodeSplice (markdownToSplice . Markdown . fromStrict . entryContent . entityVal)
     "postContentRaw" ## C.textSplice (entryContent . entityVal)
 
-singleSplices :: Splices (C.Splice (Handler App App))
+singleSplices :: Splices (C.Splice AppHandler)
 singleSplices = "singleEntry" ## withCache getSinglePost (C.withSplices C.runChildren postSplices)
     where
         getSinglePost = lift $ do
             slug <- maybe pass return =<< getParam "slug"
             withTop db $ run404 $ getBy (UniqueEntry $ decodeUtf8 slug)
 
-newSplices :: Splices (C.Splice (Handler App App))
+newSplices :: Splices (C.Splice AppHandler)
 newSplices = "newEntry" ## (C.withSplices C.runChildren (do
-     "entryForm" ## formSplice mempty mempty . (spliceForm =<<)
+     "entryForm" ## formSplice mempty mempty . (spliceForm "entry" . entryForm =<<)
      "formAction" ## C.pureSplice (C.textSplice (const "/n"))
      )
     (return Nothing))
 
-editSplices :: Splices (C.Splice (Handler App App))
+editSplices :: Splices (C.Splice AppHandler)
 editSplices = "editEntry" ## withCache getKeyedPost (C.withSplices C.runChildren $ do
         postSplices
-        "entryForm" ## formSplice mempty mempty . (spliceForm . Just . entityVal =<<)
+        "entryForm" ## formSplice mempty mempty . (spliceForm "entry" . entryForm . Just . entityVal =<<)
         "formAction" ## C.pureSplice (C.textSplice (("/e/" <>) . toPathPiece . entityKey)))
     where
         getKeyedPost = lift $ do
             key <- getPathPiece "key"
             fmap (Entity key) $ withTop db $ run404 $ get key
 
-getPathPiece :: (MonadSnap m, PathPiece b) => ByteString -> m b
-getPathPiece = maybe pass return . (>>= fromPathPiece . decodeUtf8) <=< getParam
-
-spliceForm :: Maybe Entry -> RSplice (View T.Text)
-spliceForm = lift . liftM fst . runForm "entry" . entryForm
-
-homepageSplices :: Splices (C.Splice (Handler App App))
+homepageSplices :: Splices (C.Splice AppHandler)
 homepageSplices = "homePage" ## withCache getAllPosts (C.withSplices C.runChildren $ do
         "postList" ## (C.manyWithSplices C.runChildren postSplices)
         "disqusUrl" ## C.pureSplice (\ es ->
@@ -114,5 +88,36 @@ homepageSplices = "homePage" ## withCache getAllPosts (C.withSplices C.runChildr
         )
     where getAllPosts = lift $ withTop db $ runPersist (selectList [] [Desc EntryCreatedAt])
 
-siteSplices :: Splices (C.Splice (Handler App App))
+siteSplices :: Splices (C.Splice AppHandler)
 siteSplices = mconcat [homepageSplices, singleSplices, editSplices, newSplices, loginSplices]
+
+compileSplice :: String -> C.Splice AppHandler
+compileSplice "devel" = C.runChildren
+compileSplice "prod" = compileScriptsSplice
+compileSplice x = error $ "Unknown environment " ++ x
+
+compileScriptsSplice :: C.Splice AppHandler
+compileScriptsSplice = do
+    n <- getParamNode
+    let children = childNodes n
+        srcs = catMaybes $ map (getAttribute "src") children
+        outputFilename = show (hash (encodeUtf8 $ T.intercalate ":" $ sort srcs) :: Digest SHA1) ++ ".js"
+    return $ C.yieldRuntime $ do
+        e <- liftIO $ doesFileExist $ outputDir </> outputFilename
+        unless e $ do
+            fileSources <- lift $ mapM (runSelf . encodeUtf8) srcs
+            liftIO $ do
+                ugly <- uglify srcs (B.concat fileSources)
+                createDirectoryIfMissing True outputDir
+                B.writeFile (outputDir </> outputFilename) ugly
+        return $ C.htmlNodeSplice (const [Element "script" [("src", T.pack $ "/s" </> "compiled" </> outputFilename)] []]) ()
+    where
+        outputDir = "static/compiled"
+
+uglify :: [T.Text] -> B.ByteString -> IO B.ByteString
+uglify paths code = do
+    (status, out, err) <- readProcessWithExitCode "uglifyjs" ["-c", "-m"] code
+    case status of
+        ExitSuccess -> return out
+        ExitFailure i -> error $ printf "Error minifying %s (shell exited %d): %s"
+            (show paths) i (T.unpack $ decodeUtf8 $ B.toStrict err)

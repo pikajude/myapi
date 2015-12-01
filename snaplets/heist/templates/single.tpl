@@ -2,7 +2,9 @@
   <bind tag="subtitle"> » <postTitle/></bind>
   <bind tag="extra-foot">
     <script src="//otters.disqus.com/embed.js"></script>
-    <script src="/js/disqus.js"></script>
+    <compile>
+      <script src="/js/disqus.js"></script>
+    </compile>
   </bind>
   <apply template="base">
     <head>
@@ -15,6 +17,7 @@
         <ifLoggedIn>
           <a class="edit-link fa fa-pencil" href="/e/${postId}"></a>
           <form class="delete-form" method="post" action="/d/${postId}">
+            <input type="hidden" name="_method" value="DELETE" />
             <button type="submit" class="fa fa-trash-o" data-confirm="Are you sure you want to delete this post?"></button>
           </form>
         </ifLoggedIn>

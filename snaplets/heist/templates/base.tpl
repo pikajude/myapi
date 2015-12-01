@@ -45,11 +45,13 @@ post</a>
       </div>
     </div>
 
-    <script src="/vendor/jquery/dist/jquery.min.js"/>
-    <script src="/vendor/foundation/js/foundation.min.js"/>
-    <script src="/vendor/tipsy/src/javascripts/jquery.tipsy.js"/>
-    <script src="/js/index.js"></script>
-    <script>$(document).foundation()</script>
+    <compile>
+      <script src="/vendor/jquery/dist/jquery.js"/>
+      <script src="/vendor/foundation/js/foundation.js"/>
+      <script src="/vendor/tipsy/src/javascripts/jquery.tipsy.js"/>
+      <script src="/js/index.js"></script>
+      <script>$(document).foundation()</script>
+    </compile>
     <extra-foot/>
   </body>
 </html>

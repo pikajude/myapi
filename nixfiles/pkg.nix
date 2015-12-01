@@ -1,11 +1,13 @@
 { mkDerivation, base, blaze-builder, blaze-html, bytestring
-, data-default, digestive-functors, digestive-functors-heist
-, digestive-functors-snap, heist, highlighter, http-types, lens
-, markdown, monad-logger, MonadCatchIO-transformers, mtl
-, path-pieces, pcre-light, persistent, persistent-template
+, cryptohash, data-default, digestive-functors
+, digestive-functors-heist, digestive-functors-snap, directory
+, filepath, heist, highlighter, http-types, lens, markdown
+, monad-logger, MonadCatchIO-transformers, mtl, path-pieces
+, pcre-light, persistent, persistent-template, process-extras
 , resourcet, snap, snap-core, snap-extras, snap-loader-static
 , snap-server, snaplet-coffee, snaplet-persistent, snaplet-sass
-, stdenv, text, time, transformers, xmlhtml
+, stdenv, template-haskell, text, time, transformers, true-name
+, xmlhtml
 }:
 mkDerivation {
   pname = "myapi";
@@ -14,13 +16,14 @@ mkDerivation {
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [
-    base blaze-builder blaze-html bytestring data-default
+    base blaze-builder blaze-html bytestring cryptohash data-default
     digestive-functors digestive-functors-heist digestive-functors-snap
-    heist highlighter http-types lens markdown monad-logger
-    MonadCatchIO-transformers mtl path-pieces pcre-light persistent
-    persistent-template resourcet snap snap-core snap-extras
-    snap-loader-static snap-server snaplet-coffee snaplet-persistent
-    snaplet-sass text time transformers xmlhtml
+    directory filepath heist highlighter http-types lens markdown
+    monad-logger MonadCatchIO-transformers mtl path-pieces pcre-light
+    persistent persistent-template process-extras resourcet snap
+    snap-core snap-extras snap-loader-static snap-server snaplet-coffee
+    snaplet-persistent snaplet-sass template-haskell text time
+    transformers true-name xmlhtml
   ];
   description = "Project Synopsis Here";
   license = stdenv.lib.licenses.unfree;
