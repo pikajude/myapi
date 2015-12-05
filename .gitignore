@@ -4,6 +4,7 @@ dist
 log
 result*
 site_key.txt
+snaplets/assets/compiled
 snaplets/coffee/js
 snaplets/sass/css
 static/compiled
