@@ -37,12 +37,20 @@ let
     lockfile = ./Gemfile.lock;
   };
 
+  myNodePackages = pkgs.nodePackages.override {
+    generated = ./nixfiles/node-packages-generated.nix;
+    self = myNodePackages;
+  };
+
   drv = with haskellPackages; pkgs.haskell.lib.overrideCabal (callPackage ./nixfiles/pkg.nix {}) (p: {
     src = ./.;
-    buildTools = (p.buildTools or []) ++ [
-      pkgs.nodePackages.coffee-script pkgs.nodePackages.uglify-js sass
-    ] ++ pkgs.lib.optionals devMode [
-      cabal-install cabal2nix stylish-haskell
+    configureFlags = pkgs.lib.optional devMode "-fdevelopment";
+    executableHaskellDepends = p.executableHaskellDepends ++ pkgs.lib.optional devMode snap-loader-dynamic;
+    buildTools = (p.buildTools or []) ++ (with myNodePackages; [
+      coffee-script cssmin uglify-js
+    ]) ++ [ sass ]
+      ++ pkgs.lib.optionals devMode [
+      cabal-install cabal2nix hlint stylish-haskell
       pkgs.bundix pkgs.bundler pkgs.postgresql
     ];
   });

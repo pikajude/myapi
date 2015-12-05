@@ -1,0 +1,5 @@
+[
+  "cssmin",
+  "coffee-script",
+  "uglify-js"
+]

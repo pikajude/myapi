@@ -1,15 +1,17 @@
 <singleEntry>
   <bind tag="subtitle"> » <postTitle/></bind>
   <bind tag="extra-foot">
+    <compile type="javascript">
+      <coffee src="coffee/disqus.coffee"/>
+    </compile>
     <script src="//otters.disqus.com/embed.js"></script>
-    <compile>
-      <script src="/js/disqus.js"></script>
+  </bind>
+  <bind tag="extra-head">
+    <compile type="css">
+      <sass src="sass/single.sass"/>
     </compile>
   </bind>
-  <apply template="base">
-    <head>
-      <link rel="stylesheet" href="/css/single.css" />
-    </head>
+  <apply template="_base">
     <article class="bubble blog-post">
       <h1 class="post-title">
         <postTitle/>

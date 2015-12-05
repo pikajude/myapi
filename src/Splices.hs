@@ -3,14 +3,9 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
 
-module Splices (siteSplices, compileSplice) where
+module Splices (siteSplices) where
 
-import           Control.Monad
 import           Control.Monad.Trans
-import           Crypto.Hash
-import qualified Data.ByteString.Lazy            as B
-import           Data.List
-import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Text                       as T
 import           Data.Text.Encoding
@@ -21,13 +16,7 @@ import qualified Heist.Compiled                  as C
 import           Network.HTTP.Types
 import           Snap
 import           Snap.Snaplet.Persistent
-import           System.Directory
-import           System.Exit
-import           System.FilePath
-import           System.Process.ByteString.Lazy  (readProcessWithExitCode)
 import           Text.Markdown                   (Markdown (Markdown))
-import           Text.Printf
-import           Text.XmlHtml
 import           Web.PathPieces
 ------------------------------------------------------------------------------
 import           Application
@@ -35,7 +24,6 @@ import           Forms
 import           HighlightedMarkdown
 import           Models
 import           PersistUtils
-import           RunHandler
 import           Text.Digestive.Heist.ErrorAware
 
 withCache :: RuntimeSplice AppHandler a -> (RuntimeSplice AppHandler a -> C.Splice AppHandler) -> C.Splice AppHandler
@@ -90,34 +78,3 @@ homepageSplices = "homePage" ## withCache getAllPosts (C.withSplices C.runChildr
 
 siteSplices :: Splices (C.Splice AppHandler)
 siteSplices = mconcat [homepageSplices, singleSplices, editSplices, newSplices, loginSplices]
-
-compileSplice :: String -> C.Splice AppHandler
-compileSplice "devel" = C.runChildren
-compileSplice "prod" = compileScriptsSplice
-compileSplice x = error $ "Unknown environment " ++ x
-
-compileScriptsSplice :: C.Splice AppHandler
-compileScriptsSplice = do
-    n <- getParamNode
-    let children = childNodes n
-        srcs = catMaybes $ map (getAttribute "src") children
-        outputFilename = show (hash (encodeUtf8 $ T.intercalate ":" $ sort srcs) :: Digest SHA1) ++ ".js"
-    return $ C.yieldRuntime $ do
-        e <- liftIO $ doesFileExist $ outputDir </> outputFilename
-        unless e $ do
-            fileSources <- lift $ mapM (runSelf . encodeUtf8) srcs
-            liftIO $ do
-                ugly <- uglify srcs (B.concat fileSources)
-                createDirectoryIfMissing True outputDir
-                B.writeFile (outputDir </> outputFilename) ugly
-        return $ C.htmlNodeSplice (const [Element "script" [("src", T.pack $ "/s" </> "compiled" </> outputFilename)] []]) ()
-    where
-        outputDir = "static/compiled"
-
-uglify :: [T.Text] -> B.ByteString -> IO B.ByteString
-uglify paths code = do
-    (status, out, err) <- readProcessWithExitCode "uglifyjs" ["-c", "-m"] code
-    case status of
-        ExitSuccess -> return out
-        ExitFailure i -> error $ printf "Error minifying %s (shell exited %d): %s"
-            (show paths) i (T.unpack $ decodeUtf8 $ B.toStrict err)

@@ -1,8 +1,10 @@
+<bind tag="extra-head">
+  <compile type="css">
+    <sass src="sass/form.sass"/>
+  </compile>
+</bind>
 <bind tag="extra-foot"/>
-<apply template="base">
-  <head>
-    <link rel="stylesheet" type="text/css" href="/css/form.css" />
-  </head>
+<apply template="_base">
   <article class="bubble">
     <h3 class="form-title">Log in</h3>
     <loginForm role="form" method="post" action="/in">

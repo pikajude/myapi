@@ -20,32 +20,27 @@ module Site
 import Control.Applicative
 import Control.Lens
 import Control.Monad
-import Control.Monad.IO.Class
 import Data.ByteString                             (ByteString)
-import Data.Maybe
 import Data.Monoid
 import Database.Persist.Sql
 import Heist
-import Heist.Splices.Html
 import Snap.Core
 import Snap.Extras.FlashNotice
 import Snap.Extras.MethodOverride
 import Snap.Snaplet
 import Snap.Snaplet.Auth
 import Snap.Snaplet.Auth.Backends.JsonFile
-import Snap.Snaplet.Coffee
 import Snap.Snaplet.Heist
 import Snap.Snaplet.Persistent
-import Snap.Snaplet.Sass
 import Snap.Snaplet.Session.Backends.CookieSession
 import Snap.Util.FileServe
-import System.Environment                          (lookupEnv)
 import Text.Digestive.Snap                         hiding (method)
 ------------------------------------------------------------------------------
 import Application
 import Forms
 import Models
 import PersistUtils
+import Snap.Snaplet.Assets
 import Splices
 
 handleLoginPost :: Handler App (AuthManager App) ()
@@ -73,7 +68,7 @@ handleNewPost = do
     case result of
         Nothing -> cRender "new"
         Just newEntry -> do
-            with db $ runPersist $ insert newEntry
+            _ <- with db $ runPersist $ insert newEntry
             redirect $ entryPath newEntry
 
 handleDelete :: AppHandler ()
@@ -86,30 +81,24 @@ handleDelete = do
     flashSuccess sess $ "Deleted ‘" <> entryTitle e <> "’"
     redirect "/"
 
-routes :: IO [(ByteString, AppHandler ())]
-routes = do
-    bowerComponents <- fromMaybe "bower_components" <$> lookupEnv "BOWER_COMPONENTS"
-    return
-           [ ("/r/:slug",  cRender "single")
-           , ("/e/:key",   needAuth $ method GET (cRender "edit")
-                                  <|> method POST handleEditPost)
-           , ("/d/:key",   needAuth $ handleMethodOverride $ method DELETE handleDelete)
-           , ("/n",        needAuth $ method GET (cRender "new")
-                                  <|> method POST handleNewPost)
+routes :: [(ByteString, AppHandler ())]
+routes = [ ("/r/:slug",  cRender "single")
+         , ("/e/:key",   needAuth $ method GET (cRender "edit")
+                                <|> method POST handleEditPost)
+         , ("/d/:key",   needAuth $ handleMethodOverride $ method DELETE handleDelete)
+         , ("/n",        needAuth $ method GET (cRender "new")
+                                <|> method POST handleNewPost)
 
-           , ("/in",       needNoAuth $ with auth $ method GET (cRender "login")
-                                                <|> method POST handleLoginPost)
-           , ("/out",      needAuth $ with auth $ logout >> redirect "/")
+         , ("/in",       needNoAuth $ with auth $ method GET (cRender "login")
+                                              <|> method POST handleLoginPost)
+         , ("/out",      needAuth $ with auth $ logout >> redirect "/")
 
-           , ("/s",        serveDirectory "static")
-           , ("/css",      with sass sassServe)
-           , ("/js",       with coffee coffeeServe)
-           , ("/vendor",   serveDirectory bowerComponents)
+         , ("/s",        serveDirectory "static")
 
-           , ("/",         ifTop $ cRender "home")
+         , ("/",         ifTop $ cRender "home")
 
-           , ("",          handle404)
-           ]
+         , ("",          handle404)
+         ]
     where needAuth = requireUser auth pass
           needNoAuth x = requireUser auth x (redirect "/")
           handle404 = do
@@ -120,27 +109,21 @@ routes = do
 -- | The application initializer.
 app :: SnapletInit App App
 app = makeSnaplet "app" "An snaplet example application." Nothing $ do
-    e <- getEnvironment
     let hc = emptyHeistConfig & hcNamespace .~ ""
                               & hcErrorNotBound .~ True
                               & hcSpliceConfig .~ sc
-        sc = mempty & scLoadTimeSplices .~ do
-                          defaultLoadTimeSplices
-                          htmlTag ## htmlImpl
-                    & scCompiledSplices .~ do
-                          siteSplices
-                          "compile" ## compileSplice e
+        sc = mempty & scLoadTimeSplices .~ defaultLoadTimeSplices
+                    & scCompiledSplices .~ siteSplices
     h <- nestSnaplet "" heist $ heistInit' "templates" hc
     s <- nestSnaplet "sess" sess $
         initCookieSessionManager "site_key.txt" "sess" (Just 3600)
     a <- nestSnaplet "auth" auth $
         initJsonFileAuthManager defAuthSettings sess "users.json"
-    c <- nestSnaplet "coffee" coffee initCoffee
-    ss <- nestSnaplet "sass" sass initSass
     p <- nestSnaplet "db" db (initPersist (runMigration migrateAll))
+    ac <- nestSnaplet "assets" assets (initAssets h Nothing)
 
     addAuthSplices h auth
+    addAssetRoutes ac
     initFlashNotice h sess
-    rs <- liftIO routes
-    addRoutes rs
-    return $ App h s a ss p c app rs
+    addRoutes routes
+    return $ App h s a ac p

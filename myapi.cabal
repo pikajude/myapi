@@ -25,7 +25,10 @@ Executable myapi
   Build-depends:
     blaze-builder,
     blaze-html,
+    byteable,
     bytestring,
+    configurator,
+    containers,
     cryptohash,
     data-default,
     digestive-functors,
@@ -40,6 +43,7 @@ Executable myapi
     monad-logger,
     MonadCatchIO-transformers,
     mtl,
+    network-uri,
     path-pieces,
     pcre-light,
     persistent,
@@ -69,6 +73,8 @@ Executable myapi
     build-depends:
       base                      >= 4.4      && < 5,
       lens                      >= 3.7.6    && < 4.13
+
+  ghc-options: -Wall -Werror
 
   if flag(development)
     build-depends:

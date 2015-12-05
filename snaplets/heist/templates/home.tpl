@@ -1,10 +1,6 @@
 <homePage>
   <bind tag="subtitle"/>
-  <bind tag="extra-foot">
-    <script src="${disqusUrl}"></script>
-  </bind>
-
-  <apply template="base">
+  <apply template="_base">
     <article class="bubble last-bubble">
       <h5 class="site-title">
         <ifLoggedIn>

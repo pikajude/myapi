@@ -7,26 +7,21 @@ module Application where
 
 ------------------------------------------------------------------------------
 import Control.Lens
-import Data.ByteString         (ByteString)
 import Snap.Snaplet
+import Snap.Snaplet.Assets
 import Snap.Snaplet.Auth
-import Snap.Snaplet.Coffee
 import Snap.Snaplet.Heist
 import Snap.Snaplet.Persistent
-import Snap.Snaplet.Sass
 import Snap.Snaplet.Session
 
 type AppHandler = Handler App App
 
 data App = App
-    { _heist     :: Snaplet (Heist App)
-    , _sess      :: Snaplet SessionManager
-    , _auth      :: Snaplet (AuthManager App)
-    , _sass      :: Snaplet Sass
-    , _db        :: Snaplet PersistState
-    , _coffee    :: Snaplet CoffeeScript
-    , _sn        :: SnapletInit App App
-    , _appRoutes :: [(ByteString, AppHandler ())]
+    { _heist  :: Snaplet (Heist App)
+    , _sess   :: Snaplet SessionManager
+    , _auth   :: Snaplet (AuthManager App)
+    , _assets :: Snaplet AssetConfig
+    , _db     :: Snaplet PersistState
     }
 
 makeLenses ''App

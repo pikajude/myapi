@@ -1,7 +1,9 @@
-<apply template="base">
-  <head>
-    <link href="/css/form.css" rel="stylesheet" type="text/css" />
-  </head>
+<bind tag="extra-head">
+  <compile type="css">
+    <sass src="sass/form.sass"/>
+  </compile>
+</bind>
+<apply template="_base">
   <article class="bubble">
     <h2 class="form-title">Write something</h2>
     <entryForm action="${formAction}">

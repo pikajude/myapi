@@ -1,5 +1,5 @@
 <bind tag="subtitle"> » Not found!</bind>
-<apply template="base">
+<apply template="_base">
   <head>
     <link rel="stylesheet" href="/css/single.css" />
   </head>
